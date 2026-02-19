@@ -7,6 +7,9 @@ import connectCloudinary from "./config/cloudinary.js";
 import userRouter from "./routes/userRoute.js";
 import productRouter from "./routes/productRoute.js";
 import inquiryRouter from "./routes/inquiryRoute.js";
+import watchBuyRoute from "./routes/watchBuyRoute.js";
+import utilsRoute from "./routes/utilsRoute.js";
+
 
 /* -------------------------------------------------------------------------- */
 /* 🔹 ENV SETUP */
@@ -17,28 +20,43 @@ dotenv.config();
 /* 🔹 APP INIT */
 /* -------------------------------------------------------------------------- */
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 4000;
 
 /* -------------------------------------------------------------------------- */
-/* 🔹 CONNECT SERVICES (RUN ONCE) */
+/* 🔹 CONNECT SERVICES */
 /* -------------------------------------------------------------------------- */
-connectDB();           // MongoDB (cached connection)
-connectCloudinary();   // Cloudinary
+connectDB();
+connectCloudinary();
 
 /* -------------------------------------------------------------------------- */
-/* 🔹 MIDDLEWARES */
+/* 🔹 CORS (CORRECT & SAFE) */
 /* -------------------------------------------------------------------------- */
 app.use(
   cors({
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE"],
+    origin: (origin, callback) => {
+      // allow Postman / server-to-server
+      if (!origin) return callback(null, true);
+
+      // allow all Vite dev ports
+      if (origin.startsWith("http://localhost:517")) {
+        return callback(null, true);
+      }
+
+      // block others
+      return callback(new Error("Not allowed by CORS"));
+    },
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    credentials: true,
   })
 );
 
+/* -------------------------------------------------------------------------- */
+/* 🔹 BODY PARSER */
+/* -------------------------------------------------------------------------- */
 app.use(express.json({ limit: "10mb" }));
 
 /* -------------------------------------------------------------------------- */
-/* 🔹 HEALTH CHECK (KEEP RENDER AWAKE) */
+/* 🔹 HEALTH CHECK */
 /* -------------------------------------------------------------------------- */
 app.get("/health", (req, res) => {
   res.status(200).send("OK");
@@ -50,17 +68,19 @@ app.get("/health", (req, res) => {
 app.use("/api/user", userRouter);
 app.use("/api/product", productRouter);
 app.use("/api/inquiry", inquiryRouter);
+app.use("/api/watch-buy", watchBuyRoute);
+app.use("/api/utils", utilsRoute);
 
 /* -------------------------------------------------------------------------- */
 /* 🔹 ROOT ROUTE */
 /* -------------------------------------------------------------------------- */
 app.get("/", (req, res) => {
-  res.send("API Working");
+  res.send("API Working (Local)");
 });
 
 /* -------------------------------------------------------------------------- */
 /* 🔹 START SERVER */
 /* -------------------------------------------------------------------------- */
 app.listen(PORT, () => {
-  console.log(`🚀 Server started on PORT: ${PORT}`);
+  console.log(`🚀 Local server running on http://localhost:${PORT}`);
 });
