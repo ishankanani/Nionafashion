@@ -1,4 +1,3 @@
-// backend/controllers/productController.js
 import { v2 as cloudinary } from "cloudinary";
 import productModel from "../models/productModel.js";
 import fs from "fs/promises";
@@ -23,10 +22,12 @@ export const addProduct = async (req, res) => {
       subCategory,
       sizes,
       bestseller,
+      latest, // ✅ NEW
       productCode,
       colors,
       fabric,
       moq,
+      weight,
     } = req.body;
 
     const files = req.files?.images || [];
@@ -38,7 +39,7 @@ export const addProduct = async (req, res) => {
       });
     }
 
-    // Upload images to Cloudinary
+    /* -------------------- UPLOAD IMAGES -------------------- */
     const imageUrls = await Promise.all(
       files.map(async (file) => {
         const upload = await cloudinary.uploader.upload(file.path);
@@ -49,18 +50,40 @@ export const addProduct = async (req, res) => {
       })
     );
 
+    /* -------------------- SAFE FABRIC PARSE -------------------- */
+    let parsedFabric = { top: [], bottom: [], dupatta: [] };
+
+    try {
+      if (fabric) {
+        const temp = JSON.parse(fabric);
+        parsedFabric = {
+          top: Array.isArray(temp.top) ? temp.top : [],
+          bottom: Array.isArray(temp.bottom) ? temp.bottom : [],
+          dupatta: Array.isArray(temp.dupatta) ? temp.dupatta : [],
+        };
+      }
+    } catch (err) {
+      console.error("Fabric parse error (ADD):", err);
+    }
+
+    /* -------------------- CREATE PRODUCT -------------------- */
     const productData = {
       name,
-      productCode: productCode || "",
+      code: productCode || "",
       description,
       price: Number(price),
       moq: moq || "",
+      weight: weight || "",
       category,
       subCategory,
+
       bestseller: bestseller === "true" || bestseller === true,
+      latest: latest === "true" || latest === true, // ✅ NEW
+
       sizes: sizes ? JSON.parse(sizes) : [],
       colors: colors ? JSON.parse(colors) : [],
-      fabric: fabric ? JSON.parse(fabric) : [],
+      fabric: parsedFabric,
+
       image: imageUrls,
       date: Date.now(),
     };
@@ -68,7 +91,6 @@ export const addProduct = async (req, res) => {
     const product = new productModel(productData);
     await product.save();
 
-    // 🔄 clear cache after add
     cachedProducts = null;
 
     res.json({
@@ -96,10 +118,12 @@ export const updateProduct = async (req, res) => {
       subCategory,
       sizes,
       bestseller,
+      latest, // ✅ NEW
       productCode,
       colors,
       fabric,
       moq,
+      weight,
     } = req.body;
 
     const product = await productModel.findById(id);
@@ -107,19 +131,41 @@ export const updateProduct = async (req, res) => {
       return res.json({ success: false, message: "Product not found" });
     }
 
+    /* -------------------- SAFE FABRIC PARSE -------------------- */
+    let parsedFabric = { top: [], bottom: [], dupatta: [] };
+
+    try {
+      if (fabric) {
+        const temp = JSON.parse(fabric);
+        parsedFabric = {
+          top: Array.isArray(temp.top) ? temp.top : [],
+          bottom: Array.isArray(temp.bottom) ? temp.bottom : [],
+          dupatta: Array.isArray(temp.dupatta) ? temp.dupatta : [],
+        };
+      }
+    } catch (err) {
+      console.error("Fabric parse error (UPDATE):", err);
+    }
+
+    /* -------------------- UPDATE FIELDS -------------------- */
     product.name = name;
     product.description = description;
     product.price = Number(price);
     product.category = category;
     product.subCategory = subCategory;
-    product.productCode = productCode || "";
+
+    product.code = productCode || "";
     product.moq = moq || "";
+    product.weight = weight || "";
+
     product.bestseller = bestseller === "true" || bestseller === true;
+    product.latest = latest === "true" || latest === true; // ✅ NEW
+
     product.sizes = sizes ? JSON.parse(sizes) : [];
     product.colors = colors ? JSON.parse(colors) : [];
-    product.fabric = fabric ? JSON.parse(fabric) : [];
+    product.fabric = parsedFabric;
 
-    // Image update
+    /* -------------------- OPTIONAL IMAGE UPDATE -------------------- */
     if (req.files?.images?.length > 0) {
       const imageUrls = await Promise.all(
         req.files.images.map(async (file) => {
@@ -136,7 +182,6 @@ export const updateProduct = async (req, res) => {
 
     await product.save();
 
-    // 🔄 clear cache after update
     cachedProducts = null;
 
     res.json({
@@ -151,13 +196,12 @@ export const updateProduct = async (req, res) => {
 };
 
 /* -------------------------------------------------------------------------- */
-/* 🟢 LIST PRODUCTS (🔥 OPTIMIZED & CACHED) */
+/* 🟢 LIST PRODUCTS (CACHED) */
 /* -------------------------------------------------------------------------- */
 export const listProducts = async (req, res) => {
   try {
     const now = Date.now();
 
-    // ⚡ serve from cache
     if (cachedProducts && now - lastFetchTime < CACHE_DURATION) {
       return res.json({ success: true, products: cachedProducts });
     }
@@ -165,8 +209,7 @@ export const listProducts = async (req, res) => {
     const products = await productModel
       .find({})
       .sort({ date: -1 })
-      .limit(30) // 🔥 VERY IMPORTANT
-      .lean();   // 🔥 VERY FAST
+      .lean();
 
     cachedProducts = products;
     lastFetchTime = now;
@@ -184,8 +227,6 @@ export const listProducts = async (req, res) => {
 export const removeProduct = async (req, res) => {
   try {
     await productModel.findByIdAndDelete(req.body.id);
-
-    // 🔄 clear cache after delete
     cachedProducts = null;
 
     res.json({ success: true, message: "Product Removed" });
@@ -196,7 +237,7 @@ export const removeProduct = async (req, res) => {
 };
 
 /* -------------------------------------------------------------------------- */
-/* 🟢 SINGLE PRODUCT DETAILS */
+/* 🟢 SINGLE PRODUCT */
 /* -------------------------------------------------------------------------- */
 export const singleProduct = async (req, res) => {
   try {
