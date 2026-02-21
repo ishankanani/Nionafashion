@@ -10,7 +10,6 @@ import inquiryRouter from "./routes/inquiryRoute.js";
 import watchBuyRoute from "./routes/watchBuyRoute.js";
 import utilsRoute from "./routes/utilsRoute.js";
 
-
 /* -------------------------------------------------------------------------- */
 /* 🔹 ENV SETUP */
 /* -------------------------------------------------------------------------- */
@@ -20,7 +19,7 @@ dotenv.config();
 /* 🔹 APP INIT */
 /* -------------------------------------------------------------------------- */
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 5000;
 
 /* -------------------------------------------------------------------------- */
 /* 🔹 CONNECT SERVICES */
@@ -29,20 +28,28 @@ connectDB();
 connectCloudinary();
 
 /* -------------------------------------------------------------------------- */
-/* 🔹 CORS (CORRECT & SAFE) */
+/* 🔹 ALLOWED ORIGINS (LIVE + LOCAL) */
+/* -------------------------------------------------------------------------- */
+const allowedOrigins = [
+  "https://harifashion.in",
+  "https://www.harifashion.in",
+  "http://localhost:5173",
+  "http://localhost:5174",
+];
+
+/* -------------------------------------------------------------------------- */
+/* 🔹 CORS CONFIG (PRODUCTION SAFE) */
 /* -------------------------------------------------------------------------- */
 app.use(
   cors({
     origin: (origin, callback) => {
-      // allow Postman / server-to-server
+      // Allow Postman / server-to-server
       if (!origin) return callback(null, true);
 
-      // allow all Vite dev ports
-      if (origin.startsWith("http://localhost:517")) {
+      if (allowedOrigins.includes(origin)) {
         return callback(null, true);
       }
 
-      // block others
       return callback(new Error("Not allowed by CORS"));
     },
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
@@ -56,7 +63,7 @@ app.use(
 app.use(express.json({ limit: "10mb" }));
 
 /* -------------------------------------------------------------------------- */
-/* 🔹 HEALTH CHECK */
+/* 🔹 HEALTH CHECK (VERY IMPORTANT FOR LIVE) */
 /* -------------------------------------------------------------------------- */
 app.get("/health", (req, res) => {
   res.status(200).send("OK");
@@ -72,15 +79,15 @@ app.use("/api/watch-buy", watchBuyRoute);
 app.use("/api/utils", utilsRoute);
 
 /* -------------------------------------------------------------------------- */
-/* 🔹 ROOT ROUTE */
+/* 🔹 ROOT */
 /* -------------------------------------------------------------------------- */
 app.get("/", (req, res) => {
-  res.send("API Working (Local)");
+  res.send("API Working (Live)");
 });
 
 /* -------------------------------------------------------------------------- */
 /* 🔹 START SERVER */
 /* -------------------------------------------------------------------------- */
 app.listen(PORT, () => {
-  console.log(`🚀 Local server running on http://localhost:${PORT}`);
+  console.log(`🚀 Live server running on port ${PORT}`);
 });
